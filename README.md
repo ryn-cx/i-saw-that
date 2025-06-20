@@ -11,7 +11,7 @@ A simple file and directory watcher and backup utility written in Go.
 - Comprehensive test suite
 
 ## Future Plans
-- An optional, GUI
+- An optional GUI
 - More options
 - Watching multiple directories at once
 
