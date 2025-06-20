@@ -37,7 +37,7 @@ func main() {
 		log.Fatalf("Error starting watcher: %v", err)
 	}
 
-	fmt.Printf("Watcher started.\nWatching: %s\nBackups: %s\n", watcher.Source, watcher.Destination)
+	fmt.Printf("Watcher started")
 	fmt.Printf("Watching: %s\n", watcher.Source)
 	fmt.Printf("Backups: %s\n", watcher.Destination)
 
