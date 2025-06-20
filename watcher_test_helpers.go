@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"log"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -30,9 +31,12 @@ func DefaultTempWatcherConfig(t *testing.T) tempWatcherConfig {
 	if err != nil {
 		t.Fatalf("Failed to create temp directory: %v", err)
 	}
-	// t.Cleanup(func() {
-	// 	os.RemoveAll(tempPath)
-	// })
+
+	log.Printf("Temporary directory created: %s", tempPath)
+
+	t.Cleanup(func() {
+		os.RemoveAll(tempPath)
+	})
 
 	return tempWatcherConfig{
 		Name:         "Test Watcher",
@@ -185,35 +189,41 @@ type SimplifiedObserver struct {
 }
 
 func (o *SimplifiedObserver) OnBackupCompletion(watcher *Watcher) {
+	o.incrementCounter()
+	o.cond.Signal()
+}
+
+func (o *SimplifiedObserver) getCurrentCount() int {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return o.CurrentCount
+}
+func (o *SimplifiedObserver) incrementCounter() {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	o.CurrentCount++
-	o.cond.Signal()
 }
 
 // WaitUntilCount waits for the observer's CurrentCount to reach a specific value.
 func (o *SimplifiedObserver) WaitUntilCount(targetCount int, timeout time.Duration) bool {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-
-	if o.CurrentCount == targetCount {
+	if o.getCurrentCount() == targetCount {
 		return true
 	}
 
 	outOfTime := false
 	timer := time.AfterFunc(timeout, func() {
-		o.mu.Lock()
 		outOfTime = true
-		o.mu.Unlock()
-		o.cond.Broadcast()
+		o.cond.Signal()
 	})
 	defer timer.Stop()
 
+	o.mu.Lock()
 	for o.CurrentCount < targetCount && !outOfTime {
 		o.cond.Wait()
 	}
+	o.mu.Unlock()
 
-	return o.CurrentCount >= targetCount
+	return o.getCurrentCount() >= targetCount
 }
 
 func getWatcherWithObserver(t *testing.T) (tempWatcherConfig, *Watcher, *SimplifiedObserver) {
@@ -231,6 +241,12 @@ func getWatcherWithObserver(t *testing.T) (tempWatcherConfig, *Watcher, *Simplif
 	if err != nil {
 		t.Fatalf("Failed to start watcher: %v", err)
 	}
+
+	t.Cleanup(func() {
+		if err := watcher.StopWatcher(); err != nil {
+			t.Fatalf("Failed to stop watcher: %v", err)
+		}
+	})
 
 	// Wait for completion
 	if !observer.WaitUntilCount(1, 5*time.Second) {

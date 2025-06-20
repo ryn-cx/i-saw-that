@@ -240,6 +240,8 @@ func (w *Watcher) saveMetadata() error {
 // TODO: Go through everything below this
 // TODO: Make more tests before mucking around in this code
 func (w *Watcher) StartWatcher() error {
+	log.Printf("%s: Starting watcher\n", w.Name)
+	// It's safe to lock for this entire function because no other
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -252,15 +254,20 @@ func (w *Watcher) StartWatcher() error {
 		return errors.New("watcher is already running")
 	}
 
+	// Create new channels because the old ones should be closed
+	w.stopChan = make(chan struct{})
+	w.backupRequestChan = make(chan struct{}, 1)
+
 	go w.startFSNotifyWatcher()
 	go w.backupLoop()
 
-	// Create an initial backup if no backups are present.
-	if len(w.Metadata) == 0 {
-		w.backupRequestChan <- struct{}{}
-	}
+	log.Printf("%s: Watcher Started\n", w.Name)
 
-	fmt.Printf("%s: Starting watcher\n", w.Name)
+	// Create an initial backup if no backups are present.
+	err := w.createBackupIfFileIsOutdated()
+	if err != nil {
+		return fmt.Errorf("error checking if backup is up to date: %w", err)
+	}
 	return nil
 }
 
@@ -269,7 +276,7 @@ func (w *Watcher) StopWatcher() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	if w.fsnotifyWatcher == nil && len(w.stopChan) == 0 {
+	if w.fsnotifyWatcher == nil {
 		return nil // Already stopped
 	}
 
@@ -328,6 +335,7 @@ func (w *Watcher) backupLoop() {
 		// An file was changed, start a timer to wait for all file changes to settle
 		// before creating a backup.
 		case <-w.backupRequestChan:
+			log.Printf("File change detected, starting timer for %f seconds", w.WaitTime)
 			if timer != nil {
 				timer.Stop()
 			}
@@ -337,6 +345,7 @@ func (w *Watcher) backupLoop() {
 		// The timer has expired, which means the changes have settled and it's time to
 		// create a backup.
 		case <-timerChan:
+			log.Printf("%s: Timer expired, creating backup", w.Name)
 			w.createBackup()
 
 			// Reset timer
@@ -443,4 +452,107 @@ func (w *Watcher) notifyObservers() {
 	for _, observer := range observers {
 		observer.OnBackupCompletion(w)
 	}
+}
+
+func (w *Watcher) createBackupIfFileIsOutdated() error {
+	// If no backups have been made it has to be outdated
+	if len(w.Metadata) == 0 {
+		log.Printf("No backups found, creating initial backup")
+		w.backupRequestChan <- struct{}{}
+		return nil
+	}
+
+	latestBackupPath := filepath.Join(w.Destination, w.Metadata[len(w.Metadata)-1].Path)
+
+	foldersMatch, err := doFolderMatch(w.Source, latestBackupPath)
+	if err != nil {
+		return fmt.Errorf("error comparing source and latest backup: %w", err)
+	}
+
+	if !foldersMatch {
+		log.Printf("Source and latest backup do not match, creating new backup")
+		w.backupRequestChan <- struct{}{}
+	}
+
+	return nil
+}
+
+func doFolderMatch(source, destination string) (bool, error) {
+	sourceEntries, err := os.ReadDir(source)
+	if err != nil {
+		return false, fmt.Errorf("error reading source directory: %w", err)
+	}
+	destEntries, err := os.ReadDir(destination)
+	if err != nil {
+		return false, fmt.Errorf("error reading destination directory: %w", err)
+	}
+
+	if len(sourceEntries) != len(destEntries) {
+		return false, nil
+	}
+
+	for i := range sourceEntries {
+		sourceEntry := sourceEntries[i]
+		destinationEntry := destEntries[i]
+
+		if sourceEntry.Name() != destinationEntry.Name() {
+			return false, nil
+		}
+
+		sourceString := filepath.Join(source, sourceEntry.Name())
+		destinationString := filepath.Join(destination, destinationEntry.Name())
+
+		if sourceEntry.IsDir() && destinationEntry.IsDir() {
+			subfolderMatch, err := doFolderMatch(sourceString, destinationString)
+			if err != nil {
+				return false, fmt.Errorf("error comparing directories: %w", err)
+			}
+			if !subfolderMatch {
+				return false, nil
+			}
+		} else if !sourceEntry.IsDir() && !destinationEntry.IsDir() {
+			fileMatch, err := doFilesMatch(sourceString, destinationString)
+			if err != nil {
+				return false, fmt.Errorf("error comparing files: %w", err)
+			}
+
+			if !fileMatch {
+				return false, nil
+			}
+
+		} else {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+func doFilesMatch(source, destination string) (bool, error) {
+	sourceInfo, err := os.Stat(source)
+	if err != nil {
+		return false, fmt.Errorf("error stating source file: %v", err)
+	}
+	destInfo, err := os.Stat(destination)
+	if err != nil {
+		return false, fmt.Errorf("error stating destination file: %v", err)
+	}
+
+	sourceContent, err := os.ReadFile(source)
+	if err != nil {
+		return false, fmt.Errorf("error reading source file: %v", err)
+	}
+
+	destContent, err := os.ReadFile(destination)
+	if err != nil {
+		return false, fmt.Errorf("error reading destination file: %v", err)
+	}
+
+	if string(sourceContent) != string(destContent) {
+		return false, nil
+	}
+
+	if !sourceInfo.ModTime().Equal(destInfo.ModTime()) {
+		return false, nil
+	}
+	return true, nil
 }

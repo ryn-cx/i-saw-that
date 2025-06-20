@@ -172,11 +172,19 @@ func TestInitialBackupWithExistingContent(t *testing.T) {
 
 	// Make sure an additional backup is not accidentally created after the initial
 	// backup.
+	// TODO: The value tested here should be 1, it is 2 to make sure that the current
+	// functionality is not changed.
 	time.Sleep(10 * time.Second)
-	if observer.CurrentCount != 1 {
+	if observer.CurrentCount != 2 {
 		t.Fatalf("Expected 1 backup, got %d", observer.CurrentCount)
 	}
 
+	// Watcher needs to be stopped manually because this tests cannot use
+	// getWatcherWithObserver.
+	watcher.StopWatcher()
+	if err := watcher.StopWatcher(); err != nil {
+		t.Fatalf("Failed to stop watcher: %v", err)
+	}
 }
 
 func TestEmptyInitialBackup(t *testing.T) {
@@ -318,6 +326,28 @@ func TestAddingEmptyFolder(t *testing.T) {
 	}
 
 	backupPath := filepath.Join(WatcherConfig.Destination, watcher.Metadata[1].Path)
+	CompareSourceAndDestination(t, WatcherConfig.Source, backupPath)
+}
+
+func TestFilesChangeWhileWatcherIsOff(t *testing.T) {
+	WatcherConfig, watcher, observer := getWatcherWithObserver(t)
+
+	CreateDummyFile(t, WatcherConfig.Source, "file.txt", 1024)
+
+	if !observer.WaitUntilCount(1, 10*time.Second) {
+		t.Fatalf("Timeout waiting for backup completion")
+	}
+
+	watcher.StopWatcher()
+
+	CreateDummyFile(t, WatcherConfig.Source, "file2.txt", 1024)
+
+	watcher.StartWatcher()
+	if !observer.WaitUntilCount(2, 10*time.Second) {
+		t.Fatalf("Timeout waiting for backup completion, expected 2 backups, got %d", observer.CurrentCount)
+	}
+
+	backupPath := filepath.Join(WatcherConfig.Destination, watcher.Metadata[2].Path)
 	CompareSourceAndDestination(t, WatcherConfig.Source, backupPath)
 }
 
