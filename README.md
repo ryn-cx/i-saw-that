@@ -17,8 +17,10 @@ A simple file and directory watcher and backup utility written in Go.
 
 ### Build
 
-Requires a modified version of fsnotify with recursion enabled that is not included in
+- Requires a modified version of fsnotify with recursion enabled that is not included in
 this repository.
+- Once fsnotify officially supports recursion an official alpha version of the software
+  will be released with normal build instructions.
 
 ### Run
 
