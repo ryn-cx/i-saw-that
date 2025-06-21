@@ -11,6 +11,7 @@ import (
 )
 
 func TestInitialization(t *testing.T) {
+	t.Parallel()
 	WatcherConfig := DefaultTempWatcherConfig(t)
 
 	watcher, err := newWatcher(WatcherConfig)
@@ -39,6 +40,7 @@ func TestInitialization(t *testing.T) {
 }
 
 func TestDestinationInSource(t *testing.T) {
+	t.Parallel()
 	WatcherConfig := DefaultTempWatcherConfig(t)
 
 	WatcherConfig.Destination = filepath.Join(WatcherConfig.Source, "destination")
@@ -47,6 +49,7 @@ func TestDestinationInSource(t *testing.T) {
 }
 
 func TestSourceIsDestination(t *testing.T) {
+	t.Parallel()
 	WatcherConfig := DefaultTempWatcherConfig(t)
 
 	WatcherConfig.Destination = WatcherConfig.Source
@@ -55,6 +58,7 @@ func TestSourceIsDestination(t *testing.T) {
 }
 
 func TestSourceNotDirectory(t *testing.T) {
+	t.Parallel()
 	WatcherConfig := DefaultTempWatcherConfig(t)
 
 	err := os.MkdirAll(filepath.Dir(WatcherConfig.Source), 0755)
@@ -72,6 +76,7 @@ func TestSourceNotDirectory(t *testing.T) {
 }
 
 func TestDestinationNotDirectory(t *testing.T) {
+	t.Parallel()
 	WatcherConfig := DefaultTempWatcherConfig(t)
 
 	err := os.MkdirAll(filepath.Dir(WatcherConfig.Destination), 0755)
@@ -91,6 +96,7 @@ func TestDestinationNotDirectory(t *testing.T) {
 }
 
 func TestInvalidName(t *testing.T) {
+	t.Parallel()
 	WatcherConfig := DefaultTempWatcherConfig(t)
 	WatcherConfig.Name = ""
 	CheckForWatcherErrorV2(t, WatcherConfig, &ErrorInvalidNameV2, "name cannot be empty")
@@ -98,18 +104,21 @@ func TestInvalidName(t *testing.T) {
 }
 
 func TestInvalidWaitTime(t *testing.T) {
+	t.Parallel()
 	WatcherConfig := DefaultTempWatcherConfig(t)
 	WatcherConfig.WaitTime = 0
 	CheckForWatcherErrorV2(t, WatcherConfig, &ErrorInvalidWaitTime, "wait time must be at least 0 seconds")
 }
 
 func TestImpreciseFolderFormat(t *testing.T) {
+	t.Parallel()
 	WatcherConfig := DefaultTempWatcherConfig(t)
 	WatcherConfig.FolderFormat = "2006-01-02"
 	CheckForWatcherErrorV2(t, WatcherConfig, &ErrorInvalidFolderFormat, "folder format lacks adequate precision")
 }
 
 func TestInvalidFolderFormat(t *testing.T) {
+	t.Parallel()
 	if os := os.Getenv("OS"); os != "Windows_NT" {
 		t.Skip("Skipping Windows-specific test")
 	}
@@ -121,6 +130,7 @@ func TestInvalidFolderFormat(t *testing.T) {
 }
 
 func TestInvalidSourceName(t *testing.T) {
+	t.Parallel()
 	if os := os.Getenv("OS"); os != "Windows_NT" {
 		t.Skip("Skipping Windows-specific test")
 	}
@@ -131,6 +141,7 @@ func TestInvalidSourceName(t *testing.T) {
 }
 
 func TestInvalidDestinationName(t *testing.T) {
+	t.Parallel()
 	if os := os.Getenv("OS"); os != "Windows_NT" {
 		t.Skip("Skipping Windows-specific test")
 	}
@@ -141,6 +152,7 @@ func TestInvalidDestinationName(t *testing.T) {
 }
 
 func TestInitialBackupWithExistingContent(t *testing.T) {
+	t.Parallel()
 	// This code cannot use getWatcherWithObserver because it starts the watcher with
 	// empty directories.
 	WatcherConfig := DefaultTempWatcherConfig(t)
@@ -188,12 +200,14 @@ func TestInitialBackupWithExistingContent(t *testing.T) {
 }
 
 func TestEmptyInitialBackup(t *testing.T) {
+	t.Parallel()
 	WatcherConfig, watcher, _ := getWatcherWithObserver(t)
 	backupPath := filepath.Join(WatcherConfig.Destination, watcher.Metadata[0].Path)
 	CompareSourceAndDestination(t, WatcherConfig.Source, backupPath)
 }
 
 func TestAddingMultipleGroupedFiles(t *testing.T) {
+	t.Parallel()
 	WatcherConfig, watcher, observer := getWatcherWithObserver(t)
 
 	numberOfLoops := 5
@@ -215,6 +229,7 @@ func TestAddingMultipleGroupedFiles(t *testing.T) {
 	}
 }
 func TestAddingFilesSlowly(t *testing.T) {
+	t.Parallel()
 	WatcherConfig, watcher, observer := getWatcherWithObserver(t)
 
 	for i := range 5 {
@@ -232,6 +247,7 @@ func TestAddingFilesSlowly(t *testing.T) {
 }
 
 func TestAddFileDuringBackups(t *testing.T) {
+	t.Parallel()
 	WatcherConfig, watcher, observer := getWatcherWithObserver(t)
 	testPath := filepath.Dir(WatcherConfig.Source)
 	tempFolderPath := filepath.Join(testPath, "temp")
@@ -277,6 +293,7 @@ func TestAddFileDuringBackups(t *testing.T) {
 }
 
 func TestAddingFilesInNewSubfolder(t *testing.T) {
+	t.Parallel()
 	WatcherConfig, watcher, observer := getWatcherWithObserver(t)
 
 	CreateDummyFile(t, WatcherConfig.Source, "subfolder/file1.txt", 1024)
@@ -289,6 +306,7 @@ func TestAddingFilesInNewSubfolder(t *testing.T) {
 }
 
 func TestAddingFilesInExistingSubfolder(t *testing.T) {
+	t.Parallel()
 	WatcherConfig, watcher, observer := getWatcherWithObserver(t)
 
 	// Create a subfolder in the source directory
@@ -311,6 +329,7 @@ func TestAddingFilesInExistingSubfolder(t *testing.T) {
 
 }
 func TestAddingEmptyFolder(t *testing.T) {
+	t.Parallel()
 	WatcherConfig, watcher, observer := getWatcherWithObserver(t)
 
 	// Create a subfolder in the source directory
@@ -330,6 +349,7 @@ func TestAddingEmptyFolder(t *testing.T) {
 }
 
 func TestFilesChangeWhileWatcherIsOff(t *testing.T) {
+	t.Parallel()
 	WatcherConfig, watcher, observer := getWatcherWithObserver(t)
 
 	CreateDummyFile(t, WatcherConfig.Source, "file.txt", 1024)
