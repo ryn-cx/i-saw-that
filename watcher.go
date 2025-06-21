@@ -110,11 +110,10 @@ func (w *Watcher) saveMetadata() error {
 	return nil
 }
 
-// TODO: Go through everything below this
-// TODO: Make more tests before mucking around in this code
 func (w *Watcher) StartWatcher() error {
 	log.Printf("%s: Starting watcher\n", w.Name)
-	// It's safe to lock for this entire function because no other
+	// Easiest to lock the thread for the whole function since StartWatcher isn't a
+	// function that will be called frequently.
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -127,17 +126,13 @@ func (w *Watcher) StartWatcher() error {
 		return errors.New("watcher is already running")
 	}
 
-	// Create new channels because the old ones should be closed
-	w.stopChan = make(chan struct{})
-	w.backupRequestChan = make(chan struct{}, 1)
-
 	go w.startFSNotifyWatcher()
 	go w.backupLoop()
 
 	log.Printf("%s: Watcher Started\n", w.Name)
 
 	// Create an initial backup if no backups are present.
-	err := w.createBackupIfFileIsOutdated()
+	err := w.createBackupIfBackupIsOutdated()
 	if err != nil {
 		return fmt.Errorf("error checking if backup is up to date: %w", err)
 	}
@@ -146,6 +141,9 @@ func (w *Watcher) StartWatcher() error {
 
 // StopWatcher stops watching the source directory
 func (w *Watcher) StopWatcher() error {
+	// Easiest to lock the thread for the whole function since StopWatcher isn't a
+	// function that will be called frequently.
+	log.Printf("%s: Stopping watcher\n", w.Name)
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
@@ -153,9 +151,9 @@ func (w *Watcher) StopWatcher() error {
 		return nil // Already stopped
 	}
 
-	close(w.stopChan)
 	err := w.fsnotifyWatcher.Close()
 	w.fsnotifyWatcher = nil
+
 	return err
 }
 
@@ -168,13 +166,13 @@ func (w *Watcher) startFSNotifyWatcher() error {
 
 	// The current version of fsnotify unofficially supports recursive watching by
 	// appending ... to the path and modifying a single line in the fsnotify code.
-	// TODO: Look into Go packaging for how this can be compiled by users.
+	// TODO: Decide how this program should be built and distributed.
 	w.fsnotifyWatcher.Add(filepath.Join(w.Source, "..."))
 
 	for {
 		select {
 		case event, ok := <-w.fsnotifyWatcher.Events:
-			// TODO What does it mean if ok is false?
+			// TODO: Under what conditions does ok become false?
 			if !ok {
 				return nil
 			}
@@ -182,7 +180,8 @@ func (w *Watcher) startFSNotifyWatcher() error {
 			// run the backup for any file event, but this is here in case some
 			// events should not trigger a backup.
 			if event.Op != 0 {
-				w.handleFileEvent(event)
+				log.Printf("%s: File event detected: %s, Op: %s", w.Name, event.Name, event.Op)
+				w.backupRequestChan <- struct{}{}
 			}
 		case err, ok := <-w.fsnotifyWatcher.Errors:
 			if !ok {
@@ -280,13 +279,6 @@ func (w *Watcher) createBackup() {
 	w.notifyObservers()
 }
 
-// handleFileEvent handles a file system event
-func (w *Watcher) handleFileEvent(event fsnotify.Event) {
-	// Add more information to Printf from the event
-	log.Printf("%s: File event detected: %s, Op: %s", w.Name, event.Name, event.Op)
-	w.backupRequestChan <- struct{}{}
-}
-
 func (w *Watcher) AddObserver(observer BackupCompleteObserver) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -324,7 +316,7 @@ func (w *Watcher) notifyObservers() {
 	}
 }
 
-func (w *Watcher) createBackupIfFileIsOutdated() error {
+func (w *Watcher) createBackupIfBackupIsOutdated() error {
 	// If no backups have been made it has to be outdated
 	if len(w.Metadata) == 0 {
 		log.Printf("No backups found, creating initial backup")
@@ -334,7 +326,7 @@ func (w *Watcher) createBackupIfFileIsOutdated() error {
 
 	latestBackupPath := filepath.Join(w.Destination, w.Metadata[len(w.Metadata)-1].Path)
 
-	foldersMatch, err := doFolderMatch(w.Source, latestBackupPath)
+	foldersMatch, err := doFoldersMatch(w.Source, latestBackupPath)
 	if err != nil {
 		return fmt.Errorf("error comparing source and latest backup: %w", err)
 	}
@@ -347,7 +339,7 @@ func (w *Watcher) createBackupIfFileIsOutdated() error {
 	return nil
 }
 
-func doFolderMatch(source, destination string) (bool, error) {
+func doFoldersMatch(source, destination string) (bool, error) {
 	sourceEntries, err := os.ReadDir(source)
 	if err != nil {
 		return false, fmt.Errorf("error reading source directory: %w", err)
@@ -373,7 +365,7 @@ func doFolderMatch(source, destination string) (bool, error) {
 		destinationString := filepath.Join(destination, destinationEntry.Name())
 
 		if sourceEntry.IsDir() && destinationEntry.IsDir() {
-			subfolderMatch, err := doFolderMatch(sourceString, destinationString)
+			subfolderMatch, err := doFoldersMatch(sourceString, destinationString)
 			if err != nil {
 				return false, fmt.Errorf("error comparing directories: %w", err)
 			}
