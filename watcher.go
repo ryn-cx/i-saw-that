@@ -31,7 +31,6 @@ type Watcher struct {
 	Name         string   `json:"name"`
 	Source       string   `json:"source"`
 	Destination  string   `json:"destination"`
-	Enabled      bool     `json:"enabled"`
 	WaitTime     float64  `json:"wait_time"`
 	FolderFormat string   `json:"folder_format"`
 	Metadata     []Backup `json:"metadata"`
@@ -43,7 +42,7 @@ type Watcher struct {
 	backupRequestChan chan struct{}
 }
 
-func NewWatcher(name, source, destination string, waitTime float64, folderFormat string, enabled bool) (*Watcher, error) {
+func NewWatcher(name, source, destination string, waitTime float64, folderFormat string) (*Watcher, error) {
 	var errs error
 	validateName(name, &errs)
 	validateWaitTime(waitTime, &errs)
@@ -54,7 +53,6 @@ func NewWatcher(name, source, destination string, waitTime float64, folderFormat
 		Name:              name,
 		Source:            source,
 		Destination:       destination,
-		Enabled:           enabled,
 		WaitTime:          waitTime,
 		FolderFormat:      folderFormat,
 		Metadata:          []Backup{},
@@ -116,11 +114,6 @@ func (w *Watcher) StartWatcher() error {
 	// function that will be called frequently.
 	w.mu.Lock()
 	defer w.mu.Unlock()
-
-	// This is an error to support having a GUI in the future
-	if !w.Enabled {
-		return errors.New("watcher is disabled")
-	}
 
 	if w.fsnotifyWatcher != nil {
 		return errors.New("watcher is already running")

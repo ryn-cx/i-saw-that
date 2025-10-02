@@ -28,9 +28,6 @@ func TestInitialization(t *testing.T) {
 	if watcher.Destination != WatcherConfig.Destination {
 		t.Errorf("Expected destination '%s', got '%s'", WatcherConfig.Destination, watcher.Destination)
 	}
-	if !watcher.Enabled {
-		t.Errorf("Expected enabled to be true")
-	}
 	if watcher.WaitTime != 1.0 {
 		t.Errorf("Expected wait time 1.0, got %f", watcher.WaitTime)
 	}

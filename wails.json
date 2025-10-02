@@ -1,0 +1,15 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "i-saw-that",
+  "outputfilename": "i-saw-that",
+  "author": {
+    "name": "ryn.cx"
+  },
+  "info": {
+    "companyName": "",
+    "productName": "I Saw That",
+    "productVersion": "0.1.0",
+    "copyright": "AGPL-3.0",
+    "comments": ""
+  }
+}

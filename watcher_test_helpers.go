@@ -57,7 +57,6 @@ func newWatcher(config tempWatcherConfig) (*Watcher, error) {
 		config.Destination,
 		config.WaitTime,
 		config.FolderFormat,
-		config.Enabled,
 	)
 }
 
