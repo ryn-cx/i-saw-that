@@ -12,11 +12,6 @@ A simple file and directory watcher and backup utility written in Go.
 - Extensible observer interface for notifications
 - Comprehensive test suite
 
-## Future Plans
-- An optional GUI
-- More options
-- Watching multiple directories at once
-
 ### Build
 
 - Requires a modified version of fsnotify with recursion enabled that is not included in
