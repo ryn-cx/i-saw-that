@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Folder Monitor & Backup</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+
+        .container {
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 20px;
+            height: calc(100vh - 40px);
+            display: flex;
+            flex-direction: column;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+
+        .add-section {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+
+        .input-group {
+            margin-bottom: 10px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #555;
+        }
+
+        input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        button.remove {
+            background: #dc3545;
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        button.remove:hover {
+            background: #c82333;
+        }
+
+        button.edit {
+            background: #28a745;
+            padding: 6px 12px;
+            font-size: 12px;
+            margin-right: 5px;
+        }
+
+        button.edit:hover {
+            background: #218838;
+        }
+
+        .edit-row {
+            background: #fff3cd !important;
+        }
+
+        .edit-input {
+            width: 100%;
+            padding: 6px 8px;
+            border: 1px solid #ffc107;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+            justify-content: center;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        thead {
+            background: #f8f9fa;
+        }
+
+        th {
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #dee2e6;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #e9ecef;
+            color: #666;
+        }
+
+        tbody tr:hover {
+            background: #f8f9fa;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+
+        #pairsList {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .action-cell {
+            text-align: center;
+            width: 140px;
+        }
+
+        .status-cell {
+            text-align: center;
+            width: 80px;
+        }
+
+        .toggle-checkbox {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .disabled-row {
+            opacity: 0.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="add-section">
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+            <div class="input-group">
+                <label for="source">Source Folder:</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="source" placeholder="C:\path\to\source" style="flex: 1;">
+                    <button onclick="selectSourceFolder()" style="width: auto;">Browse...</button>
+                </div>
+            </div>
+            <div class="input-group">
+                <label for="destination">Destination Folder:</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="destination" placeholder="C:\path\to\destination" style="flex: 1;">
+                    <button onclick="selectDestinationFolder()" style="width: auto;">Browse...</button>
+                </div>
+            </div>
+            <div class="input-group">
+                <label for="waitTime">Wait Time (seconds):</label>
+                <input type="number" id="waitTime" placeholder="1.0" step="0.1" min="0.1" value="1.0">
+            </div>
+            <div class="input-group">
+                <label for="folderFormat">Folder Format:</label>
+                <input type="text" id="folderFormat" placeholder="2006-01-02_15-04-05.000000" value="2006-01-02_15-04-05.000000">
+            </div>
+        </div>
+        <button onclick="addPair()">Add Folder Pair</button>
+    </div>
+
+    <div id="pairsList">
+        <div class="empty-state">No folder pairs configured</div>
+    </div>
+
+    <script type="module">
+        import {SelectFolder, GetFolderPairs, AddFolderPair, UpdateFolderPair, RemoveFolderPair, ToggleFolderPair} from './wailsjs/go/main/App.js';
+
+        let editingId = null;
+
+        window.selectSourceFolder = async function() {
+            try {
+                const path = await SelectFolder();
+                if (path) {
+                    document.getElementById('source').value = path;
+                }
+            } catch (err) {
+                console.error('Error selecting folder:', err);
+            }
+        }
+
+        window.selectDestinationFolder = async function() {
+            try {
+                const path = await SelectFolder();
+                if (path) {
+                    document.getElementById('destination').value = path;
+                }
+            } catch (err) {
+                console.error('Error selecting folder:', err);
+            }
+        }
+
+        window.loadPairs = async function() {
+            try {
+                const pairs = await GetFolderPairs();
+                displayPairs(pairs);
+            } catch (err) {
+                console.error('Error loading pairs:', err);
+            }
+        }
+
+        const displayPairs = function(pairs) {
+            const container = document.getElementById('pairsList');
+
+            if (!pairs || pairs.length === 0) {
+                container.innerHTML = '<div class="empty-state">No folder pairs configured</div>';
+                return;
+            }
+
+            container.innerHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th class="status-cell">Enabled</th>
+                            <th>Source Folder</th>
+                            <th>Destination Folder</th>
+                            <th>Settings</th>
+                            <th class="action-cell">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${pairs.map(pair => `
+                            <tr id="row-${pair.id}" class="${editingId === pair.id ? 'edit-row' : ''} ${!pair.enabled ? 'disabled-row' : ''}">
+                                <td class="status-cell">
+                                    <input type="checkbox"
+                                           class="toggle-checkbox"
+                                           ${pair.enabled ? 'checked' : ''}
+                                           onchange="window.togglePair('${pair.id}', this.checked)">
+                                </td>
+                                <td id="source-${pair.id}">${editingId === pair.id ?
+                                    `<input type="text" class="edit-input" id="edit-source-${pair.id}" value="${pair.source}">` :
+                                    pair.source}</td>
+                                <td id="dest-${pair.id}">${editingId === pair.id ?
+                                    `<input type="text" class="edit-input" id="edit-dest-${pair.id}" value="${pair.destination}">` :
+                                    pair.destination}</td>
+                                <td id="settings-${pair.id}">${editingId === pair.id ?
+                                    `<div style="font-size: 12px;">
+                                        <div style="margin-bottom: 5px;">
+                                            <label>Wait: </label>
+                                            <input type="number" class="edit-input" id="edit-wait-${pair.id}" value="${pair.wait_time}" step="0.1" min="0.1" style="width: 80px; padding: 4px;">s
+                                        </div>
+                                        <div>
+                                            <label>Format: </label>
+                                            <input type="text" class="edit-input" id="edit-format-${pair.id}" value="${pair.folder_format}" style="width: 100%; padding: 4px; font-size: 11px;">
+                                        </div>
+                                    </div>` :
+                                    `<div style="font-size: 12px; color: #666;">
+                                        Wait: ${pair.wait_time}s<br>
+                                        Format: <span style="font-family: monospace; font-size: 11px;">${pair.folder_format}</span>
+                                    </div>`}</td>
+                                <td class="action-cell">
+                                    <div class="action-buttons">
+                                        ${editingId === pair.id ? `
+                                            <button class="edit" onclick="window.saveEdit('${pair.id}')">Save</button>
+                                            <button class="remove" onclick="window.cancelEdit()">Cancel</button>
+                                        ` : `
+                                            <button class="edit" onclick="window.startEdit('${pair.id}')">Edit</button>
+                                            <button class="remove" onclick="window.removePair('${pair.id}')">Remove</button>
+                                        `}
+                                    </div>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        window.startEdit = function(id) {
+            editingId = id;
+            window.loadPairs();
+        }
+
+        window.cancelEdit = function() {
+            editingId = null;
+            window.loadPairs();
+        }
+
+        window.saveEdit = async function(id) {
+            const source = document.getElementById(`edit-source-${id}`).value.trim();
+            const destination = document.getElementById(`edit-dest-${id}`).value.trim();
+            const waitTime = parseFloat(document.getElementById(`edit-wait-${id}`).value) || 1.0;
+            const folderFormat = document.getElementById(`edit-format-${id}`).value.trim();
+
+            if (!source || !destination) {
+                alert('Please enter both source and destination paths');
+                return;
+            }
+
+            try {
+                await UpdateFolderPair(id, source, destination, waitTime, folderFormat);
+                editingId = null;
+                await window.loadPairs();
+            } catch (err) {
+                alert('Error: ' + err);
+            }
+        }
+
+        window.addPair = async function() {
+            const source = document.getElementById('source').value.trim();
+            const destination = document.getElementById('destination').value.trim();
+            const waitTime = parseFloat(document.getElementById('waitTime').value) || 1.0;
+            const folderFormat = document.getElementById('folderFormat').value.trim() || '2006-01-02_15-04-05.000000';
+
+            if (!source || !destination) {
+                alert('Please enter both source and destination paths');
+                return;
+            }
+
+            try {
+                await AddFolderPair(source, destination, waitTime, folderFormat);
+                document.getElementById('source').value = '';
+                document.getElementById('destination').value = '';
+                document.getElementById('waitTime').value = '1.0';
+                document.getElementById('folderFormat').value = '2006-01-02_15-04-05.000000';
+                await window.loadPairs();
+            } catch (err) {
+                alert('Error: ' + err);
+            }
+        }
+
+        window.removePair = async function(id) {
+            try {
+                await RemoveFolderPair(id);
+                await window.loadPairs();
+            } catch (err) {
+                alert('Error: ' + err);
+            }
+        }
+
+        window.togglePair = async function(id, enabled) {
+            try {
+                await ToggleFolderPair(id, enabled);
+                await window.loadPairs();
+            } catch (err) {
+                alert('Error: ' + err);
+            }
+        }
+
+        // Load pairs on startup
+        window.addEventListener('DOMContentLoaded', window.loadPairs);
+    </script>
+</body>
+</html>
