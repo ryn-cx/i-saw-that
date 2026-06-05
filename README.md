@@ -38,5 +38,3 @@ Launch the program with no arguments to start it in GUI mode:
 ## Inspiration
 Inspired by [AutoVer](https://www.beanland.net.au/AutoVer/) with the goal of being a
 simple alternative that can be ran from the command line.
-## License
-MIT
